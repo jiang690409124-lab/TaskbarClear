@@ -20,8 +20,13 @@ case "$mode" in
       tests/selftest.cpp src/core.cpp -o build/selftest.exe
     ./build/selftest.exe
     ;;
+  probe)
+    "$GXX" "${CXXFLAGS[@]}" -O2 -static \
+      tests/taskbar_probe.cpp src/taskbar.cpp -luser32 -o build/taskbar_probe.exe
+    echo "built: build/taskbar_probe.exe (run it manually to test; taskbar becomes transparent for 3s)"
+    ;;
   *)
-    echo "usage: $0 [test]" >&2
+    echo "usage: $0 [test|probe]" >&2
     exit 1
     ;;
 esac
