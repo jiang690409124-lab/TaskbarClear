@@ -90,7 +90,14 @@ ApplyResult ApplyTransparency(int tint_alpha) {
 }
 
 ApplyResult RestoreDefault() {
-    return ApplyPolicy(kAccentDisabled, 0, 0);
+    ApplyResult result = ApplyPolicy(kAccentDisabled, 0, 0);
+    if (result.windows_found > 0) {
+        // 仅关闭强调策略任务栏会变纯黑；广播颜色变更让 Explorer 重绘自己的默认外观
+        DWORD_PTR ignored = 0;
+        SendMessageTimeoutW(HWND_BROADCAST, WM_DWMCOLORIZATIONCOLORCHANGED, 0, 0,
+                            SMTO_ABORTIFHUNG | SMTO_BLOCK, 1000, &ignored);
+    }
+    return result;
 }
 
 } // namespace taskbar

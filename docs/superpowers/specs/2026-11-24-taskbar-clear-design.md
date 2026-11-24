@@ -44,7 +44,8 @@ Windows 10 的任务栏默认是不透明色块，会遮挡壁纸底部。本工
 - 透明（100%）：AccentState = 2（ACCENT_ENABLE_TRANSPARENTGRADIENT），AccentFlags = 2，GradientColor = 0x00202020（ARGB，alpha = 0）
 - 半透明：AccentState = 2、AccentFlags = 2，GradientColor = (alpha << 24) | 0x00202020；alpha = 255 × (100 − 透明度%) / 100（四舍五入），alpha = 255 时为深灰实心
   - 实测备注（Win10 19045，条纹背景对比度）：state 2 + flags 2 + alpha 0 = 清晰全透明（对比度 25.8）；state 2 + flags 0 + alpha 0 会退回磨砂模糊（对比度 5.4）；BLURBEHIND / ACRYLIC 都会模糊（对比度 18.1）。因此必须使用 AccentFlags = 2。
-- 恢复：AccentState = 0（ACCENT_DISABLED），其余置 0，回到系统默认外观
+- 恢复：AccentState = 0（ACCENT_DISABLED），其余置 0，然后向所有顶层窗口广播 `WM_DWMCOLORIZATIONCOLORCHANGED`，让 Explorer 重绘自身默认外观
+  - 实测备注（Win10 19045）：只做 DISABLED 会让任务栏变纯黑（亮度 8.7 vs 真默认 54.3）；加广播后与重启 explorer 得到的未干预默认外观差 1.07
 
 目标窗口：
 
@@ -158,7 +159,7 @@ g++ -std=c++17 -O2 -static -fno-exceptions -fno-rtti \
 10. explorer 重启后自动恢复透明（需用户同意后执行，见 10）
 11. 右键「任务栏透明度」打开小窗；滑块 100% 时条纹背景应清晰透过任务栏（无模糊）
 12. 滑块 50%：半透明且清晰（背景不发糊）
-13. 滑块 0%：与系统默认外观一致（与退出后的外观像素差 ≈ 0，实测 2.41）
+13. 滑块 0%：与系统默认外观一致（对比"重启 explorer 后、程序未干预"的真默认，实测像素差 1.07）
 
 ### 9.3 资源实测
 
@@ -191,3 +192,4 @@ exe 文件大小、私有工作集/总工作集/私有提交、句柄数记录�
 | 退出行为 | 自动恢复系统默认外观 | 设计默认 |
 | 透明度调节 | 菜单只有「任务栏透明度」+「退出」；滑块 0-100%，0% = 系统默认外观、100% = 清晰全透明 | 用户追加需求（2026-11-24） |
 | 透明配方 | AccentState=2 + AccentFlags=2 + alpha（0 为清晰全透明） | 本机条纹实验结论 |
+| 0% 还原 | ACCENT_DISABLED + 广播 WM_DWMCOLORIZATIONCOLORCHANGED | 本机真默认对比实验（差 1.07） |
