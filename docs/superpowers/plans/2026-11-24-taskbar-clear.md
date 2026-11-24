@@ -130,6 +130,8 @@ int main() {
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# UCRT64 的 bin 必须排在 Git Bash 的 /mingw64/bin 前，否则 cc1plus 会加载错版本 DLL 静默失败
+PATH="${MSYS2_BIN:-/d/C++/MSYS2/ucrt64/bin}:$PATH"
 GXX="${GXX:-g++}"
 CXXFLAGS=(
   -std=c++17 -fno-exceptions -fno-rtti
@@ -285,6 +287,8 @@ int main() {
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# UCRT64 的 bin 必须排在 Git Bash 的 /mingw64/bin 前，否则 cc1plus 会加载错版本 DLL 静默失败
+PATH="${MSYS2_BIN:-/d/C++/MSYS2/ucrt64/bin}:$PATH"
 GXX="${GXX:-g++}"
 CXXFLAGS=(
   -std=c++17 -fno-exceptions -fno-rtti
@@ -940,6 +944,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# UCRT64 的 bin 必须排在 Git Bash 的 /mingw64/bin 前，否则 cc1plus 会加载错版本 DLL 静默失败
+PATH="${MSYS2_BIN:-/d/C++/MSYS2/ucrt64/bin}:$PATH"
 GXX="${GXX:-g++}"
 WINDRES="${WINDRES:-windres}"
 CXXFLAGS=(
