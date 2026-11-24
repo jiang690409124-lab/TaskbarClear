@@ -16,6 +16,8 @@ constexpr UINT kTrayCallbackMessage = WM_APP + 1;
 constexpr UINT kTrayIconId = 1;
 constexpr int kOpacityLabelId = 2001;
 constexpr int kOpacitySliderId = 2002;
+constexpr UINT_PTR kReapplyTimerId = 1;
+constexpr UINT kReapplyIntervalMs = 500;
 
 struct AppContext {
     HINSTANCE instance = nullptr;
@@ -247,6 +249,7 @@ void ShowContextMenu() {
 }
 
 void QuitApp() {
+    KillTimer(g_app.hwnd, kReapplyTimerId);
     const taskbar::ApplyResult restore = taskbar::RestoreDefault();
     if (restore.windows_found == 0 || restore.windows_failed > 0) {
         DebugLog(L"TaskbarClear: 退出前恢复系统默认外观失败");
@@ -304,6 +307,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
         return 0;
     case WM_DISPLAYCHANGE:
         ApplyStateChange(g_app.state, true);
+        return 0;
+    case WM_TIMER:
+        if (wparam == kReapplyTimerId && g_app.state == core::TbState::Transparent) {
+            // 开始菜单/搜索/任务视图等系统界面会重置任务栏强调策略，定时补回
+            if (!ApplyOnce(core::TbState::Transparent)) {
+                DebugLog(L"TaskbarClear: 定时重应用失败");
+            }
+        }
         return 0;
     case WM_CLOSE:
         QuitApp();
@@ -398,6 +409,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     }
     g_app.state = core::TbState::Transparent;
     UpdateTrayIcon();
+    SetTimer(g_app.hwnd, kReapplyTimerId, kReapplyIntervalMs, nullptr);
 
     MSG msg;
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
