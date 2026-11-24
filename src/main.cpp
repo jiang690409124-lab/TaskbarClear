@@ -1,5 +1,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <commctrl.h>
 #include <shellapi.h>
 
 #include "core.h"
@@ -9,18 +10,26 @@
 namespace {
 
 constexpr wchar_t kWindowClass[] = L"TaskbarClear";
+constexpr wchar_t kOpacityClass[] = L"TaskbarClearOpacity";
 constexpr wchar_t kAppTitle[] = L"TaskbarClear";
 constexpr UINT kTrayCallbackMessage = WM_APP + 1;
 constexpr UINT kTrayIconId = 1;
+constexpr int kOpacityLabelId = 2001;
+constexpr int kOpacitySliderId = 2002;
 
 struct AppContext {
+    HINSTANCE instance = nullptr;
     HWND hwnd = nullptr;
     HICON icon_on = nullptr;
     HICON icon_off = nullptr;
     UINT taskbar_created_msg = 0;
     core::TbState state = core::TbState::Default;
+    int transparency = 100;
     bool tray_added = false;
     bool skip_next_lbuttonup = false;
+    HWND opacity_hwnd = nullptr;
+    HWND opacity_slider = nullptr;
+    HWND opacity_label = nullptr;
 };
 
 AppContext g_app;
@@ -79,7 +88,9 @@ void ShowBalloon(const wchar_t* text, DWORD info_flags) {
 
 bool ApplyOnce(core::TbState target) {
     const taskbar::ApplyResult result =
-        taskbar::ApplyAll(target == core::TbState::Transparent);
+        target == core::TbState::Transparent
+            ? taskbar::ApplyTransparency(core::TintAlphaFromTransparency(g_app.transparency))
+            : taskbar::RestoreDefault();
     return result.windows_found > 0 && result.windows_failed == 0;
 }
 
@@ -107,6 +118,98 @@ void ApplyStateChange(core::TbState target, bool use_retry) {
     }
 }
 
+void UpdateOpacityLabel() {
+    if (g_app.opacity_label) {
+        wchar_t text[64];
+        wsprintfW(text, L"透明度：%d%%", g_app.transparency);
+        SetWindowTextW(g_app.opacity_label, text);
+    }
+    if (g_app.opacity_slider) {
+        SendMessageW(g_app.opacity_slider, TBM_SETPOS, TRUE, g_app.transparency);
+    }
+}
+
+void ShowOpacityWindow() {
+    if (g_app.opacity_hwnd) {
+        ShowWindow(g_app.opacity_hwnd, SW_SHOWNORMAL);
+        SetForegroundWindow(g_app.opacity_hwnd);
+        return;
+    }
+
+    RECT work{};
+    SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
+    const int width = 420;
+    const int height = 200;
+    const int x = work.left + ((work.right - work.left) - width) / 2;
+    const int y = work.top + ((work.bottom - work.top) - height) / 2;
+
+    HWND hwnd = CreateWindowExW(0, kOpacityClass, L"透明度设置",
+                                WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+                                x, y, width, height, nullptr, nullptr, g_app.instance,
+                                nullptr);
+    if (!hwnd) {
+        DebugLog(L"TaskbarClear: 创建透明度窗口失败");
+        MessageBoxW(nullptr, L"创建透明度窗口失败。", kAppTitle, MB_ICONERROR);
+        return;
+    }
+    g_app.opacity_hwnd = hwnd;
+    g_app.opacity_label = CreateWindowExW(
+        0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_LEFT, 20, 16, width - 40, 24,
+        hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kOpacityLabelId)),
+        g_app.instance, nullptr);
+    g_app.opacity_slider = CreateWindowExW(
+        0, L"msctls_trackbar32", L"",
+        WS_CHILD | WS_VISIBLE | TBS_HORZ | TBS_AUTOTICKS, 20, 48, width - 40, 40,
+        hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kOpacitySliderId)),
+        g_app.instance, nullptr);
+    HWND hint = CreateWindowExW(
+        0, L"STATIC", L"100% = 完全透明（清晰无模糊）；0% = 完全不透明",
+        WS_CHILD | WS_VISIBLE | SS_LEFT, 20, 100, width - 40, 44, hwnd, nullptr,
+        g_app.instance, nullptr);
+    if (!g_app.opacity_label || !g_app.opacity_slider || !hint) {
+        DebugLog(L"TaskbarClear: 创建透明度控件失败");
+        MessageBoxW(hwnd, L"创建透明度控件失败。", kAppTitle, MB_ICONERROR);
+        DestroyWindow(hwnd);
+        return;
+    }
+
+    HFONT font = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
+    SendMessageW(g_app.opacity_label, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
+    SendMessageW(g_app.opacity_slider, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
+    SendMessageW(hint, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
+    SendMessageW(g_app.opacity_slider, TBM_SETRANGE, TRUE, MAKELPARAM(0, 100));
+    SendMessageW(g_app.opacity_slider, TBM_SETTICFREQ, 10, 0);
+    UpdateOpacityLabel();
+
+    ShowWindow(hwnd, SW_SHOWNORMAL);
+    UpdateWindow(hwnd);
+}
+
+LRESULT CALLBACK OpacityWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+    switch (msg) {
+    case WM_HSCROLL:
+        if (g_app.opacity_slider) {
+            const int pos = static_cast<int>(
+                SendMessageW(g_app.opacity_slider, TBM_GETPOS, 0, 0));
+            if (pos != g_app.transparency) {
+                g_app.transparency = pos;
+                UpdateOpacityLabel();
+                ApplyStateChange(core::TbState::Transparent, false);
+            }
+        }
+        return 0;
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+    case WM_DESTROY:
+        g_app.opacity_hwnd = nullptr;
+        g_app.opacity_slider = nullptr;
+        g_app.opacity_label = nullptr;
+        return 0;
+    }
+    return DefWindowProcW(hwnd, msg, wparam, lparam);
+}
+
 void ShowContextMenu() {
     HMENU menu = CreatePopupMenu();
     if (!menu) return;
@@ -116,6 +219,7 @@ void ShowContextMenu() {
     }
     AppendMenuW(menu, transparent_flags, core::kCmdTransparent, L"任务栏透明");
     AppendMenuW(menu, MF_STRING, core::kCmdDefault, L"恢复系统默认");
+    AppendMenuW(menu, MF_STRING, core::kCmdOpacity, L"透明度…");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, core::kCmdExit, L"退出");
     SetForegroundWindow(g_app.hwnd);
@@ -127,19 +231,26 @@ void ShowContextMenu() {
 }
 
 void QuitApp() {
-    const taskbar::ApplyResult restore = taskbar::ApplyAll(false);
+    const taskbar::ApplyResult restore = taskbar::RestoreDefault();
     if (restore.windows_found == 0 || restore.windows_failed > 0) {
         DebugLog(L"TaskbarClear: 退出前恢复系统默认外观失败");
         ShowBalloon(L"退出前恢复系统默认外观失败，可重启资源管理器恢复。", NIIF_WARNING);
         Sleep(1000);
     }
     RemoveTrayIcon();
+    if (g_app.opacity_hwnd) {
+        DestroyWindow(g_app.opacity_hwnd);
+    }
     DestroyWindow(g_app.hwnd);
 }
 
 void HandleCommand(int cmd) {
     if (cmd == core::kCmdExit) {
         QuitApp();
+        return;
+    }
+    if (cmd == core::kCmdOpacity) {
+        ShowOpacityWindow();
         return;
     }
     core::TbState target;
@@ -206,6 +317,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         return 0;
     }
 
+    g_app.instance = instance;
+
+    INITCOMMONCONTROLSEX icc{};
+    icc.dwSize = sizeof(icc);
+    icc.dwICC = ICC_BAR_CLASSES;
+    InitCommonControlsEx(&icc);
+
     g_app.icon_on = static_cast<HICON>(
         LoadImageW(instance, MAKEINTRESOURCEW(IDI_APP_ON), IMAGE_ICON, 0, 0,
                    LR_DEFAULTSIZE | LR_SHARED));
@@ -225,6 +343,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     wc.lpszClassName = kWindowClass;
     if (!RegisterClassExW(&wc)) {
         MessageBoxW(nullptr, L"注册窗口类失败。", kAppTitle, MB_ICONERROR);
+        CloseHandle(mutex);
+        return 1;
+    }
+
+    WNDCLASSEXW oc{};
+    oc.cbSize = sizeof(oc);
+    oc.lpfnWndProc = OpacityWndProc;
+    oc.hInstance = instance;
+    oc.lpszClassName = kOpacityClass;
+    oc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+    if (!RegisterClassExW(&oc)) {
+        MessageBoxW(nullptr, L"注册透明度窗口类失败。", kAppTitle, MB_ICONERROR);
         CloseHandle(mutex);
         return 1;
     }

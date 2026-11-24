@@ -15,7 +15,7 @@ exit /b 1
 
 :app
 windres -I res res\app.rc -O coff -o build\app.res || exit /b 1
-g++ -std=c++17 -fno-exceptions -fno-rtti -finput-charset=UTF-8 -fexec-charset=UTF-8 -ffunction-sections -fdata-sections -I res -Os -s -municode -mwindows -static -Wl,--gc-sections src\main.cpp src\taskbar.cpp src\core.cpp build\app.res -luser32 -lshell32 -lgdi32 -o build\TaskbarClear.exe || exit /b 1
+g++ -std=c++17 -fno-exceptions -fno-rtti -finput-charset=UTF-8 -fexec-charset=UTF-8 -ffunction-sections -fdata-sections -I res -Os -s -municode -mwindows -static -Wl,--gc-sections src\main.cpp src\taskbar.cpp src\core.cpp build\app.res -luser32 -lshell32 -lgdi32 -lcomctl32 -o build\TaskbarClear.exe || exit /b 1
 echo built: build\TaskbarClear.exe
 exit /b 0
 

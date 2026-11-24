@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-24-taskbar-clear-design.md`
 
+> 追改（2026-11-24）：透明最终配方改为 `AccentState=2 + AccentFlags=2 + alpha`（见 spec 第 4 节），并新增 0-100% 透明度滑块（见 spec 第 2/5 节）；本计划中的旧配方仅作历史记录。
+
 ## Global Constraints
 
 - 只保证 Windows 10 x64（实测机 10.0.19045）；Win11 不验证。

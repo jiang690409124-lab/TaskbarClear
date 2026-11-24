@@ -17,7 +17,8 @@ Windows 10 的任务栏默认是不透明色块，会遮挡壁纸底部。本工
 
 - 双击运行即把任务栏变全透明
 - 托盘图标常驻；左键单击在「透明 / 恢复系统默认」之间切换
-- 右键菜单：任务栏透明（勾选态）、恢复系统默认、退出
+- 右键菜单：任务栏透明（勾选态）、恢复系统默认、透明度…、退出
+- 透明度可调 0%-100%（右键「透明度…」小窗滑块，拖动实时生效；0% = 完全不透明，100% = 完全透明且清晰无模糊）
 - 覆盖主任务栏与所有副屏任务栏
 - explorer 重启后自动重新应用当前状态
 - 退出时恢复系统默认外观
@@ -40,8 +41,9 @@ Windows 10 的任务栏默认是不透明色块，会遮挡壁纸底部。本工
 
 - 结构：`WINDOWCOMPOSITIONATTRIBDATA { DWORD Attrib; PVOID pvData; SIZE_T cbData; }`，Attrib = `WCA_ACCENT_POLICY`（19）
 - `ACCENT_POLICY { int AccentState; int AccentFlags; DWORD GradientColor; int AnimationId; }`
-- 透明：AccentState = 3（ACCENT_ENABLE_BLURBEHIND），AccentFlags = 0，GradientColor = 0x00000000（ARGB，alpha = 0）
-  - 实测备注（Win10 19045）：AccentState = 2（ACCENT_ENABLE_TRANSPARENTGRADIENT）只会把任务栏变浅灰、不透出背景，不可用；3 + 全透明色才是真透明。
+- 透明（100%）：AccentState = 2（ACCENT_ENABLE_TRANSPARENTGRADIENT），AccentFlags = 2，GradientColor = 0x00202020（ARGB，alpha = 0）
+- 半透明：AccentState = 2、AccentFlags = 2，GradientColor = (alpha << 24) | 0x00202020；alpha = 255 × (100 − 透明度%) / 100（四舍五入），alpha = 255 时为深灰实心
+  - 实测备注（Win10 19045，条纹背景对比度）：state 2 + flags 2 + alpha 0 = 清晰全透明（对比度 25.8）；state 2 + flags 0 + alpha 0 会退回磨砂模糊（对比度 5.4）；BLURBEHIND / ACRYLIC 都会模糊（对比度 18.1）。因此必须使用 AccentFlags = 2。
 - 恢复：AccentState = 0（ACCENT_DISABLED），其余置 0，回到系统默认外观
 
 目标窗口：
@@ -75,6 +77,7 @@ Windows 10 的任务栏默认是不透明色块，会遮挡壁纸底部。本工
 - 右键单击：弹出菜单
   - `任务栏透明`（当前为透明时带勾选标记）
   - `恢复系统默认`
+  - `透明度…`（打开 420×200 小窗，滑块 0-100%，拖动实时生效；调整时自动切到透明状态）
   - 分隔线
   - `退出`
 - 每次状态变化后更新托盘图标（开启态/关闭态两套图标）与提示文字
@@ -154,6 +157,9 @@ g++ -std=c++17 -O2 -static -fno-exceptions -fno-rtti \
 8. 透明↔恢复来回 50 次：无卡顿，任务管理器句柄数稳定
 9. 再次双击 exe：不会出现第二个实例
 10. explorer 重启后自动恢复透明（需用户同意后执行，见 10）
+11. 右键「透明度…」打开小窗；滑块 100% 时条纹背景应清晰透过任务栏（无模糊）
+12. 滑块 50%：半透明且清晰（背景不发糊）
+13. 滑块 0%：任务栏完全不透明
 
 ### 9.3 资源实测
 
@@ -182,3 +188,5 @@ exe 文件大小、私有工作集/总工作集/私有提交、句柄数记录�
 | 应用名 | TaskbarClear（可改） | 设计默认 |
 | 启动状态 | 启动即透明 | 设计默认 |
 | 退出行为 | 自动恢复系统默认外观 | 设计默认 |
+| 透明度调节 | 托盘菜单「透明度…」小窗滑块 0-100%，实时生效 | 用户追加需求（2026-11-24） |
+| 透明配方 | AccentState=2 + AccentFlags=2 + alpha（0 为清晰全透明） | 本机条纹实验结论 |

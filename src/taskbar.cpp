@@ -6,8 +6,9 @@ namespace taskbar {
 namespace {
 
 constexpr int kAccentDisabled = 0;
-constexpr int kAccentEnableBlurBehind = 3;
+constexpr int kAccentEnableTransparentGradient = 2;
 constexpr int kWcaAccentPolicy = 19;
+constexpr DWORD kTintRgb = 0x00202020; // 深灰（0x00BBGGRR）
 
 struct AccentPolicy {
     int accent_state;
@@ -47,15 +48,7 @@ BOOL CALLBACK EnumTaskbars(HWND hwnd, LPARAM param) {
     return TRUE;
 }
 
-} // namespace
-
-TaskbarWindows FindAll() {
-    TaskbarWindows windows{};
-    EnumWindows(EnumTaskbars, reinterpret_cast<LPARAM>(&windows));
-    return windows;
-}
-
-ApplyResult ApplyAll(bool transparent) {
+ApplyResult ApplyPolicy(int accent_state, int accent_flags, DWORD gradient_color) {
     ApplyResult result{0, 0};
     const auto set_wca = ResolveSetWca();
     if (!set_wca) return result;
@@ -64,14 +57,9 @@ ApplyResult ApplyAll(bool transparent) {
     result.windows_found = windows.count;
     for (int i = 0; i < windows.count; ++i) {
         AccentPolicy policy{};
-        if (transparent) {
-            // Win10 19045 实测：ACCENT_ENABLE_TRANSPARENTGRADIENT(2) 只会把任务栏变浅灰，
-            // 不透背景；ACCENT_ENABLE_BLURBEHIND(3) + 全透明色（ARGB alpha=0）才是真透明。
-            policy.accent_state = kAccentEnableBlurBehind;
-            policy.gradient_color = 0x00000000;
-        } else {
-            policy.accent_state = kAccentDisabled;
-        }
+        policy.accent_state = accent_state;
+        policy.accent_flags = accent_flags;
+        policy.gradient_color = gradient_color;
         WindowCompositionAttributeData data{};
         data.attrib = kWcaAccentPolicy;
         data.data = &policy;
@@ -81,6 +69,28 @@ ApplyResult ApplyAll(bool transparent) {
         }
     }
     return result;
+}
+
+} // namespace
+
+TaskbarWindows FindAll() {
+    TaskbarWindows windows{};
+    EnumWindows(EnumTaskbars, reinterpret_cast<LPARAM>(&windows));
+    return windows;
+}
+
+ApplyResult ApplyTransparency(int tint_alpha) {
+    if (tint_alpha < 0) tint_alpha = 0;
+    if (tint_alpha > 255) tint_alpha = 255;
+    // Win10 19045 实测：AccentState=2 + AccentFlags=2 时 alpha=0 是清晰全透明；
+    // AccentFlags=0 且 alpha=0 会退回磨砂模糊，不可用。
+    // 半透明档位用深灰 tint，alpha 越大越不透明。
+    const DWORD color = (static_cast<DWORD>(tint_alpha) << 24) | kTintRgb;
+    return ApplyPolicy(kAccentEnableTransparentGradient, 2, color);
+}
+
+ApplyResult RestoreDefault() {
+    return ApplyPolicy(kAccentDisabled, 0, 0);
 }
 
 } // namespace taskbar

@@ -32,4 +32,10 @@ bool IsTransparentChecked(TbState state) {
     return state == TbState::Transparent;
 }
 
+int TintAlphaFromTransparency(int transparency_percent) {
+    if (transparency_percent < 0) transparency_percent = 0;
+    if (transparency_percent > 100) transparency_percent = 100;
+    return (255 * (100 - transparency_percent) + 50) / 100;
+}
+
 } // namespace core

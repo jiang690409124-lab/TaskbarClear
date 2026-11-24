@@ -51,6 +51,15 @@ int main() {
     CHECK(core::kCmdTransparent != core::kCmdDefault);
     CHECK(core::kCmdDefault != core::kCmdExit);
 
+    CHECK(core::TintAlphaFromTransparency(100) == 0);
+    CHECK(core::TintAlphaFromTransparency(75) == 64);
+    CHECK(core::TintAlphaFromTransparency(50) == 128);
+    CHECK(core::TintAlphaFromTransparency(25) == 191);
+    CHECK(core::TintAlphaFromTransparency(0) == 255);
+    CHECK(core::TintAlphaFromTransparency(-10) == 255);
+    CHECK(core::TintAlphaFromTransparency(110) == 0);
+    CHECK(!core::CommandToTarget(core::kCmdOpacity, &target));
+
     if (g_failures == 0) {
         std::printf("selftest: all checks passed\n");
         return 0;

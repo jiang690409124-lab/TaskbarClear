@@ -20,7 +20,7 @@ case "$mode" in
     "$WINDRES" -I res res/app.rc -O coff -o build/app.res
     "$GXX" "${CXXFLAGS[@]}" -I res -Os -s -municode -mwindows -static -Wl,--gc-sections \
       src/main.cpp src/taskbar.cpp src/core.cpp build/app.res \
-      -luser32 -lshell32 -lgdi32 -o build/TaskbarClear.exe
+      -luser32 -lshell32 -lgdi32 -lcomctl32 -o build/TaskbarClear.exe
     echo "built: build/TaskbarClear.exe"
     ;;
   test)

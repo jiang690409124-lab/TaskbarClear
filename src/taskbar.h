@@ -16,8 +16,10 @@ struct TaskbarWindows {
 
 TaskbarWindows FindAll();
 
-// transparent=true 全透明；false 恢复系统默认。
-// windows_found==0 表示没有找到任何任务栏窗口。
-ApplyResult ApplyAll(bool transparent);
+// tint_alpha：0..255。0 = 完全透明（清晰无模糊）；255 = 完全不透明（深灰实心）。
+ApplyResult ApplyTransparency(int tint_alpha);
+
+// 移除强调策略，恢复系统默认外观。
+ApplyResult RestoreDefault();
 
 } // namespace taskbar
