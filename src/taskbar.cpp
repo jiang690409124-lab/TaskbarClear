@@ -6,7 +6,7 @@ namespace taskbar {
 namespace {
 
 constexpr int kAccentDisabled = 0;
-constexpr int kAccentEnableTransparentGradient = 2;
+constexpr int kAccentEnableBlurBehind = 3;
 constexpr int kWcaAccentPolicy = 19;
 
 struct AccentPolicy {
@@ -65,8 +65,9 @@ ApplyResult ApplyAll(bool transparent) {
     for (int i = 0; i < windows.count; ++i) {
         AccentPolicy policy{};
         if (transparent) {
-            // ACCENT_ENABLE_TRANSPARENTGRADIENT + 全透明色（ARGB alpha=0）
-            policy.accent_state = kAccentEnableTransparentGradient;
+            // Win10 19045 实测：ACCENT_ENABLE_TRANSPARENTGRADIENT(2) 只会把任务栏变浅灰，
+            // 不透背景；ACCENT_ENABLE_BLURBEHIND(3) + 全透明色（ARGB alpha=0）才是真透明。
+            policy.accent_state = kAccentEnableBlurBehind;
             policy.gradient_color = 0x00000000;
         } else {
             policy.accent_state = kAccentDisabled;

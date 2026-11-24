@@ -32,7 +32,7 @@ Windows 10 的任务栏默认是不透明色块，会遮挡壁纸底部。本工
 - 编译器：MSYS2 UCRT64 g++（本机已有：`D:\C++\MSYS2\ucrt64\bin\g++.exe`）；本机无 make/cmake，构建用脚本直调 g++
 - 无第三方依赖；不要管理员权限；不修改系统文件与注册表
 - 仅保证 Win10 x64；Win11 不验证（若可用属额外收益）
-- 目标体积：exe ≤ 200KB；内存工作集 ≤ 5MB（以实测为准）
+- 目标体积：exe ≤ 200KB；内存按任务管理器「内存」列（私有工作集）≤ 5MB；总工作集含共享 DLL 页，只记录实测值不做硬性目标
 
 ## 4. 实现原理
 
@@ -40,7 +40,8 @@ Windows 10 的任务栏默认是不透明色块，会遮挡壁纸底部。本工
 
 - 结构：`WINDOWCOMPOSITIONATTRIBDATA { DWORD Attrib; PVOID pvData; SIZE_T cbData; }`，Attrib = `WCA_ACCENT_POLICY`（19）
 - `ACCENT_POLICY { int AccentState; int AccentFlags; DWORD GradientColor; int AnimationId; }`
-- 透明：AccentState = 2（ACCENT_ENABLE_TRANSPARENTGRADIENT），AccentFlags = 0，GradientColor = 0x00000000（ARGB，alpha = 0）
+- 透明：AccentState = 3（ACCENT_ENABLE_BLURBEHIND），AccentFlags = 0，GradientColor = 0x00000000（ARGB，alpha = 0）
+  - 实测备注（Win10 19045）：AccentState = 2（ACCENT_ENABLE_TRANSPARENTGRADIENT）只会把任务栏变浅灰、不透出背景，不可用；3 + 全透明色才是真透明。
 - 恢复：AccentState = 0（ACCENT_DISABLED），其余置 0，回到系统默认外观
 
 目标窗口：
@@ -156,7 +157,7 @@ g++ -std=c++17 -O2 -static -fno-exceptions -fno-rtti \
 
 ### 9.3 资源实测
 
-exe 文件大小、工作集内存、句柄数记录进 README，与目标值对照。
+exe 文件大小、私有工作集/总工作集/私有提交、句柄数记录进 README，与目标值对照；总工作集单独列出，避免与共享 DLL 页混淆。
 
 ## 10. 已知限制与风险
 
