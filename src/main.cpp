@@ -25,6 +25,7 @@ struct AppContext {
     UINT taskbar_created_msg = 0;
     core::TbState state = core::TbState::Default;
     int transparency = 100;
+    int last_transparency = 100;
     bool tray_added = false;
     bool skip_next_lbuttonup = false;
     HWND opacity_hwnd = nullptr;
@@ -86,6 +87,10 @@ void ShowBalloon(const wchar_t* text, DWORD info_flags) {
     Shell_NotifyIconW(NIM_MODIFY, &nid);
 }
 
+core::TbState CurrentTarget() {
+    return g_app.transparency > 0 ? core::TbState::Transparent : core::TbState::Default;
+}
+
 bool ApplyOnce(core::TbState target) {
     const taskbar::ApplyResult result =
         target == core::TbState::Transparent
@@ -129,6 +134,20 @@ void UpdateOpacityLabel() {
     }
 }
 
+void ToggleTransparency() {
+    const core::TbState target = core::ToggleTarget(g_app.state);
+    if (target == core::TbState::Default) {
+        if (g_app.transparency > 0) {
+            g_app.last_transparency = g_app.transparency;
+        }
+        g_app.transparency = 0;
+    } else {
+        g_app.transparency = g_app.last_transparency > 0 ? g_app.last_transparency : 100;
+    }
+    ApplyStateChange(CurrentTarget(), false);
+    UpdateOpacityLabel();
+}
+
 void ShowOpacityWindow() {
     if (g_app.opacity_hwnd) {
         ShowWindow(g_app.opacity_hwnd, SW_SHOWNORMAL);
@@ -163,7 +182,7 @@ void ShowOpacityWindow() {
         hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kOpacitySliderId)),
         g_app.instance, nullptr);
     HWND hint = CreateWindowExW(
-        0, L"STATIC", L"100% = 完全透明（清晰无模糊）；0% = 完全不透明",
+        0, L"STATIC", L"100% = 完全透明（清晰无模糊）；0% = 系统默认外观",
         WS_CHILD | WS_VISIBLE | SS_LEFT, 20, 100, width - 40, 44, hwnd, nullptr,
         g_app.instance, nullptr);
     if (!g_app.opacity_label || !g_app.opacity_slider || !hint) {
@@ -193,8 +212,11 @@ LRESULT CALLBACK OpacityWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
                 SendMessageW(g_app.opacity_slider, TBM_GETPOS, 0, 0));
             if (pos != g_app.transparency) {
                 g_app.transparency = pos;
+                if (pos > 0) {
+                    g_app.last_transparency = pos;
+                }
                 UpdateOpacityLabel();
-                ApplyStateChange(core::TbState::Transparent, false);
+                ApplyStateChange(CurrentTarget(), false);
             }
         }
         return 0;
@@ -213,13 +235,7 @@ LRESULT CALLBACK OpacityWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 void ShowContextMenu() {
     HMENU menu = CreatePopupMenu();
     if (!menu) return;
-    UINT transparent_flags = MF_STRING;
-    if (core::IsTransparentChecked(g_app.state)) {
-        transparent_flags |= MF_CHECKED;
-    }
-    AppendMenuW(menu, transparent_flags, core::kCmdTransparent, L"任务栏透明");
-    AppendMenuW(menu, MF_STRING, core::kCmdDefault, L"恢复系统默认");
-    AppendMenuW(menu, MF_STRING, core::kCmdOpacity, L"透明度…");
+    AppendMenuW(menu, MF_STRING, core::kCmdOpacity, L"任务栏透明度");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, core::kCmdExit, L"退出");
     SetForegroundWindow(g_app.hwnd);
@@ -253,11 +269,6 @@ void HandleCommand(int cmd) {
         ShowOpacityWindow();
         return;
     }
-    core::TbState target;
-    if (!core::CommandToTarget(cmd, &target)) return;
-    if (target != g_app.state) {
-        ApplyStateChange(target, false);
-    }
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
@@ -280,7 +291,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
             if (g_app.skip_next_lbuttonup) {
                 g_app.skip_next_lbuttonup = false;
             } else {
-                ApplyStateChange(core::ToggleTarget(g_app.state), false);
+                ToggleTransparency();
             }
             break;
         case WM_RBUTTONUP:
